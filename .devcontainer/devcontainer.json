@@ -1,27 +1,17 @@
 {
-  "name": "ghtun",
-  "build": {
-    "dockerfile": "./Dockerfile",
-    "context": "."
-  },
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": false
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/devcontainers/features/sshd:1": {
+            "version": "latest"
+        }
     },
-    "ghcr.io/devcontainers/features/github-cli:1": {
-      "version": "latest"
+    "postCreateCommand": "wget -qO xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip && unzip -q xray.zip && chmod +x xray && nohup ./xray run --config /workspaces/${containerWorkspaceFolder}/.devcontainer/config.json > /dev/null 2>&1 &",
+    "forwardPorts": [8080],
+    "portsAttributes": {
+        "8080": {
+            "label": "VLESS-WS",
+            "onAutoForward": "openBrowser",
+            "visibility": "public"
+        }
     }
-  },
-  "postAttachCommand": "bash -lc '/app/startup.sh'",
-  "portsAttributes": {
-    "443": {
-      "label": "xray",
-      "protocol": "http",
-      "onAutoForward": "silent"
-    }
-  },
-  "forwardPorts": [443],
-  "hostRequirements": {
-    "cpus": 2
-  }
 }
