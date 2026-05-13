@@ -1,35 +1,85 @@
-name: ساخت لینک VLESS
+name: BISH VLESS VPN
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  run-vpn:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: ساخت تونل و خروجی zip
+      - name: Start VLESS Server and Tunnel
         env:
           UUID: ${{ secrets.UUID }}
         run: |
-                # 1. دانلود و آماده‌سازی Xray
-                wget -O xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-                unzip xray.zip
-                chmod +x xray
+          echo "BISH is taking control..."
+          
+          # 1. دانلود Xray
+          wget -qO xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          unzip -q xray.zip
+          chmod +x xray
 
-                # 2. جایگزینی UUID در فایل کانفیگ
-                # UUID پیش‌فرض در فایل کانفیگ رو با سکرت شما جایگزین می‌کنه
-                sed -i "s/550e8400-e29b-41d4-a716-446655440000/${UUID}/g" config.json
+          # 2. ساخت فایل کانفیگ به صورت دستی (من خودم اینو برات می‌سازم تا خطای مسخره قبلی رو نگیری)
+          cat <<EOF > config.json
+          {
+            "inbounds": [
+              {
+                "port": 443,
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "${UUID}"
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "streamSettings": {
+                  "network": "xhttp",
+                  "xhttpSettings": {
+                    "mode": "packet-up",
+                    "path": "/"
+                  }
+                }
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "freedom"
+              }
+            ]
+          }
+          EOF
 
-                # 3. ساخت لینک VLESS
-                # اینجا از یک دامنه تمیز Cloudflare به عنوان SNI استفاده می‌کنیم
-                # شما می‌تونید این دامنه رو به هر دامنه‌ی تمیز دیگه‌ای تغییر بدید
-                # اسم کانفیگ هم به صورت خودکار از اسم ریپازیتوری شما گرفته می‌شه
-                VLESS_LINK="vless://${UUID}@www.visa.com:443?path=%2F&security=none&type=http#${GITHUB_REPOSITORY}"
-                
-                # 4. ساخت فایل‌های خروجی
-                mkdir -p output
-                echo "${VLESS_LINK}" > output/vless_link.txt
-                
-                # 5. ساخت فایل زیپ نهایی
-                zip -r vless-configs.zip output/
+          # 3. اجرای Xray در پس‌زمینه
+          ./xray run -c config.json &
+
+          # 4. دانلود و اجرای تونل کلودفلر برای دور زدن نت ملی شما
+          wget -qO cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared
+          ./cloudflared tunnel --url http://127.0.0.1:443 > cloudflared.log 2>&1 &
+          
+          echo "Waiting for Cloudflare Tunnel to connect..."
+          sleep 10
+          
+          # 5. استخراج آدرس تونل
+          TUNNEL_URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" cloudflared.log | head -n 1 | sed 's/https:\/\///')
+          
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "Failed to get tunnel URL!"
+            cat cloudflared.log
+            exit 1
+          fi
+
+          # 6. نمایش لینک نهایی
+          echo "=================================================================="
+          echo " 🔥 BISH SAYS: HERE IS YOUR VLESS LINK. COPY THIS! 🔥 "
+          echo ""
+          echo "vless://${UUID}@104.16.132.229:443?encryption=none&security=tls&sni=${TUNNEL_URL}&type=xhttp&host=${TUNNEL_URL}&path=%2F#BISH-VPN"
+          echo ""
+          echo "=================================================================="
+          
+          echo "The server is now running. GitHub Actions will keep this alive for 6 hours."
+          echo "Do NOT close or cancel this workflow if you want the VPN to work!"
+          
+          # بیدار نگه داشتن سرور برای ۶ ساعت
+          sleep 21600
