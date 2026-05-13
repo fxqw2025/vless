@@ -12,24 +12,24 @@ jobs:
         env:
           UUID: ${{ secrets.UUID }}
         run: |
-        # 1. دانلود و آماده‌سازی Xray
-        wget -O xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-        unzip xray.zip
-        chmod +x xray
+                # 1. دانلود و آماده‌سازی Xray
+                wget -O xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+                unzip xray.zip
+                chmod +x xray
 
-        # 2. جایگزینی UUID در فایل کانفیگ
-        # UUID پیش‌فرض در فایل کانفیگ رو با سکرت شما جایگزین می‌کنه
-        sed -i "s/550e8400-e29b-41d4-a716-446655440000/${UUID}/g" config.json
+                # 2. جایگزینی UUID در فایل کانفیگ
+                # UUID پیش‌فرض در فایل کانفیگ رو با سکرت شما جایگزین می‌کنه
+                sed -i "s/550e8400-e29b-41d4-a716-446655440000/${UUID}/g" config.json
 
-        # 3. ساخت لینک VLESS
-        # اینجا از یک دامنه تمیز Cloudflare به عنوان SNI استفاده می‌کنیم
-        # شما می‌تونید این دامنه رو به هر دامنه‌ی تمیز دیگه‌ای تغییر بدید
-        # اسم کانفیگ هم به صورت خودکار از اسم ریپازیتوری شما گرفته می‌شه
-        VLESS_LINK="vless://${UUID}@www.visa.com:443?path=%2F&security=none&type=http#${GITHUB_REPOSITORY}"
-        
-        # 4. ساخت فایل‌های خروجی
-        mkdir -p output
-        echo "${VLESS_LINK}" > output/vless_link.txt
-        
-        # 5. ساخت فایل زیپ نهایی
-        zip -r vless-configs.zip output/
+                # 3. ساخت لینک VLESS
+                # اینجا از یک دامنه تمیز Cloudflare به عنوان SNI استفاده می‌کنیم
+                # شما می‌تونید این دامنه رو به هر دامنه‌ی تمیز دیگه‌ای تغییر بدید
+                # اسم کانفیگ هم به صورت خودکار از اسم ریپازیتوری شما گرفته می‌شه
+                VLESS_LINK="vless://${UUID}@www.visa.com:443?path=%2F&security=none&type=http#${GITHUB_REPOSITORY}"
+                
+                # 4. ساخت فایل‌های خروجی
+                mkdir -p output
+                echo "${VLESS_LINK}" > output/vless_link.txt
+                
+                # 5. ساخت فایل زیپ نهایی
+                zip -r vless-configs.zip output/
