@@ -1,0 +1,27 @@
+name: ساخت لینک VLESS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ساخت تونل و خروجی zip
+        env:
+          UUID: ${{ secrets.UUID }}
+        run: |
+          chmod +x ./start.sh
+          ./start.sh
+          # یه پوشه برای زیپ درست می‌کنیم
+          mkdir -p output
+          cp vless.txt output/
+          cp vless_link.txt output/ 2>/dev/null || true
+          # فایل زیپ رو می‌سازیم
+          zip -r vless-configs.zip output/
+      - name: آپلود فایل زیپ خروجی
+        uses: actions/upload-artifact@v4
+        with:
+          name: vless-configs
+          path: vless-configs.zip
