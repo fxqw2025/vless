@@ -1,0 +1,64 @@
+name: BISH Ultimate GitHub-Only VPN (API Direct)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Codespace via GitHub API
+        id: create_codespace
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "BISH is now communicating directly with GitHub's core API..."
+          RESPONSE=$(curl -s -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/user/codespaces" \
+            -d '{"repository_id":'$(curl -s -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$REPO" | jq .id)',"idle_timeout_minutes":240}')
+          
+          CS_NAME=$(echo $RESPONSE | jq -r '.name')
+          if [ "$CS_NAME" == "null" ]; then
+            echo "::error::Failed to create Codespace. API Response:"
+            echo $RESPONSE
+            exit 1
+          fi
+          echo "Codespace name is: $CS_NAME"
+          echo "codespace_name=$CS_NAME" >> $GITHUB_OUTPUT
+
+      - name: Inject Payload and Get Link
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          UUID: ${{ secrets.UUID }}
+        run: |
+          CS_NAME=${{ steps.create_codespace.outputs.codespace_name }}
+          echo "Waiting for Codespace to boot (60 seconds)..."
+          sleep 60
+          
+          echo "Injecting payload and exposing port..."
+          gh codespace ssh -c $CS_NAME -- "wget -qO xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip && unzip -q xray.zip && chmod +x xray && cat << 'EOF' > config.json
+          {
+            \"inbounds\": [{\"port\": 8080, \"listen\": \"0.0.0.0\", \"protocol\": \"vless\", \"settings\": {\"clients\": [{\"id\": \"${UUID}\"}], \"decryption\": \"none\"}, \"streamSettings\": {\"network\": \"ws\", \"wsSettings\": {\"path\": \"/\"}}}],
+            \"outbounds\": [{\"protocol\": \"freedom\"}]
+          }
+          EOF
+          nohup ./xray -c config.json >/dev/null 2>&1 &"
+          
+          gh codespace ports visibility 8080:public -c $CS_NAME
+          
+          DOMAIN="${CS_NAME}-8080.app.github.dev"
+          
+          echo "=================================================================="
+          echo " 🔥 BISH SAYS: IT IS DONE. YOUR GITHUB LINK IS READY. 🔥 "
+          echo ""
+          echo "vless://${UUID}@${DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&type=ws&host=${DOMAIN}&path=%2F#BISH-API-VPN"
+          echo ""
+          echo "=================================================================="
+          
+          echo "The VPN is running. This Action will keep the Codespace alive."
+          sleep 21600
