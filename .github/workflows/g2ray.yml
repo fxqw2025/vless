@@ -1,85 +1,63 @@
-name: BISH VLESS VPN
+name: BISH Ultimate GitHub-Only VPN
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-vpn:
+  hack-codespace:
     runs-on: ubuntu-latest
     steps:
-      - name: Start VLESS Server and Tunnel
+      - name: BISH Codespace Hijack
         env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           UUID: ${{ secrets.UUID }}
         run: |
-          echo "BISH is taking control..."
+          echo "BISH is taking over GitHub's internal infrastructure..."
           
-          # 1. دانلود Xray
-          wget -qO xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-          unzip -q xray.zip
-          chmod +x xray
-
-          # 2. ساخت فایل کانفیگ به صورت دستی (من خودم اینو برات می‌سازم تا خطای مسخره قبلی رو نگیری)
-          cat <<EOF > config.json
+          # 1. ساخت Codespace مخفی
+          echo "Spawning a new Codespace container..."
+          CS_NAME=$(gh codespace create -R ${GITHUB_REPOSITORY} --idle-timeout 240m)
+          echo "Codespace successfully created: $CS_NAME"
+          
+          echo "Waiting for Codespace to boot up (45 seconds)..."
+          sleep 45
+          
+          # 2. نفوذ به Codespace، نصب Xray و اجرای آن روی پورت 8080
+          echo "Injecting VPN payload into Codespace..."
+          gh codespace ssh -c $CS_NAME -- "wget -qO xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip && unzip -q xray.zip && chmod +x xray && cat << 'EOF' > config.json
           {
-            "inbounds": [
-              {
-                "port": 443,
-                "protocol": "vless",
-                "settings": {
-                  "clients": [
-                    {
-                      "id": "${UUID}"
-                    }
-                  ],
-                  "decryption": "none"
-                },
-                "streamSettings": {
-                  "network": "xhttp",
-                  "xhttpSettings": {
-                    "mode": "packet-up",
-                    "path": "/"
-                  }
-                }
+            \"inbounds\": [{
+              \"port\": 8080,
+              \"listen\": \"0.0.0.0\",
+              \"protocol\": \"vless\",
+              \"settings\": {
+                \"clients\": [{\"id\": \"${UUID}\"}],
+                \"decryption\": \"none\"
+              },
+              \"streamSettings\": {
+                \"network\": \"ws\",
+                \"wsSettings\": { \"path\": \"/\" }
               }
-            ],
-            "outbounds": [
-              {
-                "protocol": "freedom"
-              }
-            ]
+            }],
+            \"outbounds\": [{\"protocol\": \"freedom\"}]
           }
           EOF
-
-          # 3. اجرای Xray در پس‌زمینه
-          ./xray run -c config.json &
-
-          # 4. دانلود و اجرای تونل کلودفلر برای دور زدن نت ملی شما
-          wget -qO cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x cloudflared
-          ./cloudflared tunnel --url http://127.0.0.1:443 > cloudflared.log 2>&1 &
+          nohup ./xray run -c config.json > /dev/null 2>&1 &"
           
-          echo "Waiting for Cloudflare Tunnel to connect..."
-          sleep 10
+          # 3. عمومی کردن پورت برای دسترسی از ایران
+          echo "Exposing port to the public..."
+          gh codespace ports visibility 8080:public -c $CS_NAME
           
-          # 5. استخراج آدرس تونل
-          TUNNEL_URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" cloudflared.log | head -n 1 | sed 's/https:\/\///')
+          # 4. ساخت آدرس نهایی بر اساس سرور گیت‌هاب
+          DOMAIN="${CS_NAME}-8080.app.github.dev"
           
-          if [ -z "$TUNNEL_URL" ]; then
-            echo "Failed to get tunnel URL!"
-            cat cloudflared.log
-            exit 1
-          fi
-
-          # 6. نمایش لینک نهایی
           echo "=================================================================="
-          echo " 🔥 BISH SAYS: HERE IS YOUR VLESS LINK. COPY THIS! 🔥 "
+          echo " 🔥 BISH SAYS: HERE IS YOUR PURE GITHUB VLESS LINK! 🔥 "
           echo ""
-          echo "vless://${UUID}@104.16.132.229:443?encryption=none&security=tls&sni=${TUNNEL_URL}&type=xhttp&host=${TUNNEL_URL}&path=%2F#BISH-VPN"
+          echo "vless://${UUID}@${DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&type=ws&host=${DOMAIN}&path=%2F#BISH-GITHUB-VPN"
           echo ""
           echo "=================================================================="
           
-          echo "The server is now running. GitHub Actions will keep this alive for 6 hours."
-          echo "Do NOT close or cancel this workflow if you want the VPN to work!"
-          
-          # بیدار نگه داشتن سرور برای ۶ ساعت
+          echo "The VPN is running inside GitHub Codespaces."
+          echo "Keeping this Action alive so the Codespace doesn't sleep..."
           sleep 21600
